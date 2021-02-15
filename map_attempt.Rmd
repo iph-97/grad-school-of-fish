@@ -38,7 +38,7 @@ food_sf <- food_sf %>%
 food_sf <- food_sf %>% filter(place_sub_type == c("Convenience", "Large-grocery", "Small-Grocery", "Small-mixed"))
 ```
 
-```{r}
+```{r, warning=FALSE}
 # Create map
 
 tmap_mode("view")
@@ -51,7 +51,7 @@ tm_shape(food_sf) +
   tm_dots("place_sub_type", popup.vars = T)
 
 ```
-```{r}
+```{r, warning=FALSE}
 # Re-create food data set to set up new map 
 
 food_sf <- read_csv("food_df")
