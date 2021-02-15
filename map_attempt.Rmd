@@ -1,0 +1,93 @@
+---
+title: "Where to Buy Food in Chicago"
+author: "Izzie Hirschy"
+date: "2/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#Load your Libraries
+library(tidyverse)
+library(tmap)
+library(sf)
+```
+
+```{r}
+
+#Read in your data
+
+chi_census_tracts <- st_read("~/Documents/tracts")
+chi_cas <- st_read("~/Documents/ca_boundaries")
+
+chi_census <- st_as_sf(chi_census_tracts)
+chi_ca_sf <- st_as_sf(chi_cas)
+
+ss_tracts <- chi_census_tracts %>% filter(commarea_n == 43)
+
+food_sf <- read_csv("food_df")
+food_sf <- data.frame(food_sf, stringsAsFactors = F)
+
+food_sf <- food_sf %>% 
+  mutate(place_sub_type = str_replace(PlaceSubType, " ", "-")) %>%
+  st_as_sf(coords = c("lon", "lat"))
+
+# Filter for the specific types of stores 
+
+food_sf <- food_sf %>% filter(place_sub_type == c("Convenience", "Large-grocery", "Small-Grocery", "Small-mixed"))
+```
+
+```{r}
+# Create map
+
+tmap_mode("view")
+
+tm_shape(chi_ca_sf) +
+  tm_polygons(border.col = "black", id = "community") +
+tm_shape(chi_census) +
+  tm_borders(col = "gray") +
+tm_shape(food_sf) +
+  tm_dots("place_sub_type", popup.vars = T)
+
+```
+```{r}
+# Re-create food data set to set up new map 
+
+food_sf <- read_csv("food_df")
+food_sf <- data.frame(food_sf, stringsAsFactors = F)
+
+food_sf <- food_sf %>% 
+  mutate(place_sub_type = str_replace(PlaceSubType, " ", "-")) %>%
+  st_as_sf(coords = c("lon", "lat"))
+
+# Filter for the specific types of stores 
+
+food_sf <- food_sf %>% 
+  mutate(grocery = if_else(place_sub_type %in% c("Large-grocery", "Small-Grocery"), TRUE, FALSE))
+
+grocery <- food_sf %>% filter(grocery == TRUE)
+no_grocery <- food_sf %>% filter(grocery == FALSE)
+
+# Create faceted map
+
+tmap_mode("view")
+
+grocery_map <- tm_shape(chi_ca_sf) +
+  tm_polygons(border.col = "black", id = "community") +
+tm_shape(chi_census) +
+  tm_borders(col = "gray") +
+tm_shape(grocery) +
+  tm_dots("place_sub_type", popup.vars = T)
+
+no_grocery_map <- tm_shape(chi_ca_sf) +
+  tm_polygons(border.col = "black", id = "community") +
+tm_shape(chi_census) +
+  tm_borders(col = "gray") +
+tm_shape(no_grocery) +
+  tm_dots("place_sub_type", popup.vars = T)
+
+tmap_arrange(grocery_map, no_grocery_map, sync = TRUE)
+
+```
+
