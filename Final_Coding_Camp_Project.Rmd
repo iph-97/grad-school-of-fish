@@ -1,0 +1,90 @@
+---
+title: "Final Project"
+author: "Izzie Hirschy"
+date: "9/17/2020"
+output: pdf_document
+---
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(readxl)
+setwd("~/Documents/Coding Camp")
+rm(list = ls())
+```
+# Final Project
+
+## Introduction
+I analyze Eviction Lab data for the state of North Carolina on a county-by-county level. I use data from the 2010 Census to identify certain counties as "mostly urban", "mostly rural", or "completely rural". I compare housing data across counties of different ruralities in order to see distinctions across geographies.
+
+The plot below compares the poverty rate and eviction filing rate in 2016 (the most recent year available) in counties in NC. You can also see the rurality and percent of renter-occupied housing in each county. Additionally, I produced a map that shows 2016 eviction rates per county based on rurality. 
+
+Census data from https://www.census.gov/programs-surveys/geography/guidance/geo-areas/urban-rural/2010-urban-rural.html 
+Eviction Lab Data from https://data-downloads.evictionlab.org/ 
+
+```{r, message = FALSE, warning = FALSE}
+eviction_data_raw <- read_csv("counties.csv") %>% select(-`parent-location`, 
+       -imputed, 
+       -`low-flag`, 
+       -subbed)
+
+county_rural_lookup <- read_xlsx("county_rural_lookup.xlsx", skip = 3) %>% filter(State == "NC")  %>%
+  mutate(GEOID = as.numeric(`2015 GEOID`)) %>%
+  select(-`2015 GEOID`, -Note)
+
+eviction_data_nc <- full_join(eviction_data_raw, county_rural_lookup, by = "GEOID") %>% 
+  select(- c(State, `2015 Geography Name`)) %>%
+  mutate( rurality = case_when(
+                  `2010 Census \r\nPercent Rural` < 50 ~ "mostly urban",
+                  `2010 Census \r\nPercent Rural` >= 50 & `2010 Census \r\nPercent Rural`< 100 ~ "mostly rural",
+                  `2010 Census \r\nPercent Rural` == 100.00000 ~ "completely rural"))
+```
+
+## Graph
+
+```{r, message = FALSE, warning = FALSE}
+eviction_data_nc %>% filter(year == 2016) %>% 
+  ggplot(aes(x = `poverty-rate`, y = `eviction-filing-rate`, 
+             color = rurality, alpha = `pct-renter-occupied`)) +
+  geom_point() +
+  labs(x = "Poverty Rate", y = "Eviction Filing Rate", 
+       title = "Poverty Rate and Eviction Rate by County")
+```
+
+```{r, message = FALSE, warning = FALSE, fig.height=20, fig.width=10}
+library(maps)
+library(here) 
+library(sf)
+
+evictions_2016 <- eviction_data_nc %>% filter(year == 2016)
+
+nc_shape <- here("gz_2010_us_050_00_500k.json") %>% st_read() %>% 
+  filter(STATE == 37)
+
+ggplot(data = nc_shape) +
+  geom_sf(aes(fill = evictions_2016$`eviction-filing-rate`)) +
+  scale_fill_continuous(name = "Eviction Filing Rate") +
+  theme(legend.position = "bottom") +
+  scale_fill_viridis_c(option = "plasma") +
+  facet_wrap(~evictions_2016$rurality, nrow = 3)
+  
+```
+
+## Summary Statistics
+
+```{r, message = FALSE, warning = FALSE}
+summary_table <- eviction_data_nc %>% filter(year == 2016) %>% group_by(rurality, year) %>%
+  summarize(mean_filing_rate = mean(`eviction-filing-rate`, na.rm = TRUE),
+            median_gross_rent = median(`median-gross-rent`, na.rm = TRUE),
+            mean_renter_occupied = mean(`pct-renter-occupied`, na.rm = TRUE),
+            mean_pct_rent_burden = mean(`rent-burden`, na.rm = TRUE))
+
+summary_table %>% knitr::kable()
+```
+## Appendix - Eviction Filing Rates Over Time
+```{r}
+eviction_data_nc %>% group_by(rurality, year) %>% 
+  summarise(mean = mean(`eviction-filing-rate`, na.rm = TRUE)) %>%
+  ggplot(aes(x = year, y = mean, color = rurality)) +
+  geom_line() +
+  labs(title = "Eviction Filing Rates 2000-2016", y = "Average Eviction Filing Rates (%)", x = "Year")
+```
+
